@@ -1,0 +1,70 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXGroup section */
+		A47DD5C62F9A4CEE009B0A3A = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXProject section */
+		A47DD5C72F9A4CEE009B0A3A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2640;
+			};
+			buildConfigurationList = A47DD5CA2F9A4CEE009B0A3A /* Build configuration list for PBXProject "OneArena2026" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A47DD5C62F9A4CEE009B0A3A;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		A47DD5CB2F9A4CEE009B0A3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		A47DD5CC2F9A4CEE009B0A3A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A47DD5CA2F9A4CEE009B0A3A /* Build configuration list for PBXProject "OneArena2026" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A47DD5CB2F9A4CEE009B0A3A /* Debug */,
+				A47DD5CC2F9A4CEE009B0A3A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A47DD5C72F9A4CEE009B0A3A /* Project object */;
+}
