@@ -1,16 +1,9 @@
-#
-//  template.py
-//  OneArena2026
-//
-//  Created by Yap Han Yang on 23/4/26.
-//
-
 # PID Controllers for speed and angular correction
 speed_pid = PIDCtrl()         # Varies speed as the robot approaches the marker
 angular_pid = PIDCtrl()       # Corrects robot's angle to face the marker
 
-# Flag to indicate end of run and break out of main loop
-global endRun
+# Global Flags
+picked_up = False
 endRun = False
 """
 Example Usage:
@@ -41,6 +34,9 @@ def initialise():
     vision_ctrl.enable_detection(rm_define.vision_detection_marker)
     vision_ctrl.set_marker_detection_distance(3)
     
+    # Reset gimbal
+    gimbal_ctrl.recenter()
+    
     # Enable line tracking
     # vision_ctrl.line_follow_color_set(rm_define.line_follow_color_red) # Track red line
 
@@ -48,11 +44,23 @@ def initialise():
     ir_distance_sensor_ctrl.enable_measure(1)
 
     # Reset arm and gripper to initial positions (arm down, gripper open)
+    if robotic_arm_ctrl.get_position()[1] < 0: # to prevent arm from jamming if never reset properly
+        robotic_arm_ctrl.move(0, 0-robotic_arm_ctrl.get_position()[1], wait_for_complete=True)
     robotic_arm_ctrl.recenter(wait_for_complete=True)
     gripper_ctrl.open()
+    robotic_arm_ctrl.move(0, 20, wait_for_complete=True)
     robotic_arm_ctrl.moveto(200, -70, wait_for_complete=True)
+    
+# ----------------------- Debugging Helper Functions -----------------------
 
-# ---------------------------- Helper Functions ----------------------------
+def set_led(R, G, B):
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_front, R, G, B, rm_define.effect_always.on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_left, R, G, B, rm_define.effect_always.on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_right, R, G, B, rm_define.effect_always.on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_back, R, G, B, rm_define.effect_always.on)
+
+
+# ------------------------ Movement Helper Functions ------------------------
 
 def track_marker():
     """
@@ -112,8 +120,11 @@ def moveForwardUntilWall(threshold):
     chassis_ctrl.stop()
 
 def lineTrack():
+    """
+    Follow line until obstacle detected.
+    """
     print('Line Track')
-    # vision_ctrl.set_line_following_speed(100)
+    # vision_ctrl.set_line_following_speed(100) # i don't think this is needed
     vision_ctrl.enable_detection(rm_define.vision_detection_line)
     media_ctrl.exposure_value_update(rm_define.exposure_value_small)
 
@@ -140,6 +151,95 @@ def lineTrack():
 
     print('End of looping distance')
     vision_ctrl.disable_detection(rm_define.vision_detection_line)
+
+def climbRamp():
+    """
+    Function for climbing a ramp using pitch detection.
+    """
+    pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
+    
+    while pitch > -5:
+        pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
+        chassis_ctrl.move_with_speed(2.0, 0, 0) # x axis (m/s), y axis(m/s), speed roatation(ignore unless swerving
+        
+    while pitch < -20:
+        pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
+        chassis_ctrl.move_with_speed(0.1, 0, 0)
+        
+    chassis_ctrl.stop()
+
+def arc_turnfn():
+    """
+    Continuous sweep. MUST TEST AND TUNE.
+    """
+    gimbal_ctrl.recenter() # for some reason ts relies on gimbal so just reset to zero here
+    for i in range(220):
+        chassis_ctrl.move_with_speed(0.3, 0.3, 70)
+    chassis_ctrl.stop()
+    time.sleep(1)
+    chassis_ctrl.move_with_distance(-180, 0.5)
+
+# -------------------------- Claw Helper Functions --------------------------
+
+def grab():
+    """
+    Close the claw.
+    """
+    while (not gripper_ctrl.is_closed()):
+        gripper_ctrl.close() # Close the gripper to pick up the cone
+    
+    print("Picked")
+
+def release():
+    """
+    Open the claw.
+    """
+    while (not gripper_ctrl.is_open()):
+        gripper_ctrl.open() # Open the gripper to drop the cone
+    
+    print("Dropped")
+
+def track_and_pickup():
+    global picked_up
+    """
+    Move forward until object is in claw, then pick up.
+    """
+    gripper_ctrl.open()
+    # Inch forward until IR distance is minimum
+    distance = ir_distance_sensor_ctrl.get_distance_info(1)
+    print("Distance from cone: ", distance)
+    while distance > 10:
+        distance = ir_distance_sensor_ctrl.get_distance_info(1)
+        chassis_ctrl.move_with_speed(0.1, 0, 0)
+        print(distance)
+    chassis_ctrl.stop()
+    print("picking up")
+    grab()
+    robotic_arm_ctrl.moveto(200, -20)
+    picked_up = True
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 180)
+
+# Isaac drop function for reference
+#def dropfn():
+#    global picked_up
+#    #stops any ongoing movement of the robot's chassis,
+#    #ensuring the robot is stationary before it attempts to drop an object
+#    chassis_ctrl.stop()
+#    if picked_up == True: #if the robot is loaded
+#        #chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 85) #robot turn 85 degree anticlockwise
+#        #chassis_ctrl.move_with_distance(0, 0.35) #0.35 in meter
+#        robotic_arm_ctrl.moveto(200, -70, wait_for_complete=True)
+#        #open the gripper - drop the item
+#        release()
+#        print("Dropped")
+#        picked_up = False
+#        robotic_arm_ctrl.recenter() #move robot's arm back to default position
+#        chassis_ctrl.move_with_distance(180, 0)
+#        chassis_ctrl.rotate_with_degree(rm_define.clockwise, 180)
+#    else:
+#        print("Nothing to drop")
+#    run_time_drop = tools.run_time_of_program()
+#    print(run_time_drop)
 
 # --------------------- TO ADAPT IF THERE IS A MAZE ---------------------
 
@@ -170,24 +270,6 @@ def startingUsingDist():
     chassis_ctrl.move_with_distance(-90, 1)
     chassis_ctrl.move_with_distance(0, 1)
     chassis_ctrl.move_with_distance(90, 1)
-    
-# ---------------------------- Maze Part Code ----------------------------
-
-def climbRamp():
-    """
-    Function for climbing the ramp using pitch detection.
-    """
-    pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
-    
-    while pitch > -5:
-        pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
-        chassis_ctrl.move_with_speed(2.0, 0, 0) # x axis (m/s), y axis(m/s), speed roatation(ignore unless swerving
-        
-    while pitch < -20:
-        pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
-        chassis_ctrl.move_with_speed(0.1, 0, 0)
-        
-    chassis_ctrl.stop()
 
 # ---------------------------- Marker Handlers ----------------------------
 
@@ -197,60 +279,6 @@ def climbRamp():
 #    """
 #    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
 #    moveForwardUntilWall(30)
-#    
-#    # ROUTE SELECTION!!!
-#    # route1() # Uncomment to use route 1
-#    route2()
-
-# ---------------------------- Route 1 ----------------------------
-
-#def route1():
-#    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 80)
-#    moveForwardUntilWall(30)
-#    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 80)
-#    moveForwardUntilWall(10)
-#    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-#    moveForwardUntilWall(30)
-#
-#def marker2():
-#    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-#    chassis_ctrl.move_with_distance(-90, 0.15)
-#    moveForwardUntilWall(15)
-#    
-#    # Since there are 2 marker 2s, marker2() will be called TWICE
-#    # i.e. robot will turn right and move forward TWICE
-#
-#def marker3():
-#    chassis_ctrl.move_with_distance(90, 0.2) # Strafe right
-#    moveForwardUntilWall(30)
-#
-#def marker4():
-#    global endRun
-#    
-#    chassis_ctrl.move_with_distance(-90, 0.3) # Strafe left
-#    chassis_ctrl.move_with_distance(0, 1) # Exit maze
-#    
-#    # End of run
-#    endRun = True
-#    print("End of run")
-
-# ---------------------------- Route 2 ----------------------------
-
-#def route2():
-#    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 20)
-#    chassis_ctrl.move_with_distance(-90, 1) # Strafe left
-#    moveForwardUntilWall(30)
-#
-#def marker5():
-#    global endRun
-#    
-#    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 20)
-#    moveForwardUntilWall(30)
-#    chassis_ctrl.move_with_distance(90, 1) # Strafe right
-#    
-#    # End of run
-#    endRun = True
-#    print("End of run")
 
 # ---------------------------- Main Execution ----------------------------
 
@@ -266,22 +294,10 @@ def main():
     # ---------------------------- If Navigating Maze With Markers ----------------------------
 
 #    while not endRun:
-#        """
-#        End the program from one of the marker functions.
-#        """
-#        markerID = track_marker()
-#        markerID -= 10  # Adjust ID range from 10–19 to 0–9
-#        print("Marker ID:", markerID)
+#      marker_id = track_marker()
+#      print("Marker ID:", marker_id)
 #
-#        if markerID == 1:
-#            marker1()
-#        elif markerID == 2:
-#            marker2()
-#        elif markerID == 3:
-#            marker3()
-#        elif markerID == 4:
-#            marker4()
-#        elif markerID == 5:
-#            marker5()
+#      if marker_id == 0:
+#          continue
 
 main()
