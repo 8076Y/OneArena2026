@@ -1,3 +1,8 @@
+'''
+default template that can hopefully be used in pretty much every task.
+compiled from anzac+isaac+steph
+'''
+
 # PID Controllers for speed and angular correction
 speed_pid = PIDCtrl()         # Varies speed as the robot approaches the marker
 angular_pid = PIDCtrl()       # Corrects robot's angle to face the marker
@@ -34,6 +39,9 @@ def initialise():
     vision_ctrl.enable_detection(rm_define.vision_detection_marker)
     vision_ctrl.set_marker_detection_distance(3)
     
+    # Reset gimbal
+    gimbal_ctrl.recenter()
+    
     # Enable line tracking
     # vision_ctrl.line_follow_color_set(rm_define.line_follow_color_red) # Track red line
 
@@ -41,9 +49,21 @@ def initialise():
     ir_distance_sensor_ctrl.enable_measure(1)
 
     # Reset arm and gripper to initial positions (arm down, gripper open)
+    if robotic_arm_ctrl.get_position()[1] < 0: # to prevent arm from jamming if never reset properly
+        robotic_arm_ctrl.move(0, 0-robotic_arm_ctrl.get_position()[1], wait_for_complete=True)
     robotic_arm_ctrl.recenter(wait_for_complete=True)
     gripper_ctrl.open()
+    robotic_arm_ctrl.move(0, 25, wait_for_complete=True)
     robotic_arm_ctrl.moveto(200, -70, wait_for_complete=True)
+    
+# ----------------------- Debugging Helper Functions -----------------------
+
+def set_led(R, G, B):
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_front, R, G, B, rm_define.effect_always_on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_left, R, G, B, rm_define.effect_always_on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_right, R, G, B, rm_define.effect_always_on)
+    led_ctrl.set_bottom_led(rm_define.armor_bottom_back, R, G, B, rm_define.effect_always_on)
+
 
 # ------------------------ Movement Helper Functions ------------------------
 
@@ -54,7 +74,7 @@ def track_marker():
     """
     global distance_from_marker
     marker_id = 0
-    threshold = 30  # Distance threshold (to be tuned)
+    threshold = 50  # Distance threshold (to be tuned)
 
     # Get marker information
     marker_info = vision_ctrl.get_marker_detection_info()
@@ -83,10 +103,11 @@ def track_marker():
 
         chassis_ctrl.stop()
         print("Reached marker")
-        return marker_id
+        return marker_info[1]
     
     else:
         # Move forward until marker is detected
+        # In main function, keep running function until marker_id is not 0 
         chassis_ctrl.move_with_speed(0.4)
         return 0
 
@@ -146,7 +167,8 @@ def climbRamp():
     while pitch > -5:
         pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
         chassis_ctrl.move_with_speed(2.0, 0, 0) # x axis (m/s), y axis(m/s), speed roatation(ignore unless swerving
-        
+        time.sleep(0.3)
+
     while pitch < -20:
         pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)
         chassis_ctrl.move_with_speed(0.1, 0, 0)
@@ -157,6 +179,7 @@ def arc_turnfn():
     """
     Continuous sweep. MUST TEST AND TUNE.
     """
+    gimbal_ctrl.recenter() # for some reason ts relies on gimbal so just reset to zero here
     for i in range(220):
         chassis_ctrl.move_with_speed(0.3, 0.3, 70)
     chassis_ctrl.stop()
@@ -225,10 +248,53 @@ def track_and_pickup():
 #    run_time_drop = tools.run_time_of_program()
 #    print(run_time_drop)
 
+# --------------------- TO ADAPT IF THERE IS A MAZE ---------------------
+
+def startingUsingInfrared():
+    """
+    Start navigation using infrared sensing.
+    """
+    wallDistThreshold = 20  # Distance threshold (to be tuned)
+
+    moveForwardUntilWall(wallDistThreshold)
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+    moveForwardUntilWall(wallDistThreshold)
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+    moveForwardUntilWall(wallDistThreshold)
+    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
+    moveForwardUntilWall(wallDistThreshold)
+    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
+    moveForwardUntilWall(wallDistThreshold)
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+
+def startingUsingDist():
+    """
+    Start navigation using predefined distances. Last resort.
+    """
+    chassis_ctrl.move_with_distance(0, 2) # 0 deg, 2m
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+    chassis_ctrl.move_with_distance(0, 1)
+    chassis_ctrl.move_with_distance(-90, 1)
+    chassis_ctrl.move_with_distance(0, 1)
+    chassis_ctrl.move_with_distance(90, 1)
+
+# ---------------------------- Marker Handlers ----------------------------
+
+#def marker1():
+#    """
+#    Marker 1: Decision point for route selection
+#    """
+#    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+#    moveForwardUntilWall(30)
 
 # ---------------------------- Main Execution ----------------------------
 
 def main():
     initialise()
+    time.sleep(2)
+    marker_id = 0
+    while marker_id == 0:
+        marker_id = track_marker()
+    print("Marker ID:", marker_id)
 
 main()

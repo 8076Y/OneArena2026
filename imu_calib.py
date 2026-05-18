@@ -1,4 +1,8 @@
-# simple diagnostic tool for chassis
+'''
+print imu values for calibration
+pitch is angle along slope
+yaw is left/right rotation on ground
+'''
 
 while True:
     pitch = chassis_ctrl.get_attitude(rm_define.chassis_pitch)

@@ -1,6 +1,8 @@
 '''
-default template that can hopefully be used in pretty much every task.
-compiled from anzac+isaac+steph
+steps
+1. tune arm init position: find ideal coordinates where marker can be seen from far
+2. tune stop distance
+3. test angle correction
 '''
 
 # PID Controllers for speed and angular correction
@@ -54,7 +56,7 @@ def initialise():
     robotic_arm_ctrl.recenter(wait_for_complete=True)
     gripper_ctrl.open()
     robotic_arm_ctrl.move(0, 25, wait_for_complete=True)
-    robotic_arm_ctrl.moveto(200, -70, wait_for_complete=True)
+    robotic_arm_ctrl.moveto(200, -10, wait_for_complete=True)
     
 # ----------------------- Debugging Helper Functions -----------------------
 
@@ -99,7 +101,7 @@ def track_marker():
             distance_from_marker = ir_distance_sensor_ctrl.get_distance_info(1)
             speed_pid.set_error(distance_from_marker)
             if len(marker_info) > 2:
-                # have to frikin check another time in case image is cut off and it throws some out of index error
+                # have to frikin check another time in case image is cut of and it throws some out of index error
                 x_offset = marker_info[2] - 0.5
                 angular_pid.set_error(x_offset)
 
@@ -114,6 +116,20 @@ def track_marker():
         # Move forward until marker is detected
         chassis_ctrl.move_with_speed(0.4)
         return 0
+
+def moveForwardUntilWall(threshold):
+    """
+    Moves forward until the IR sensor detects a wall within the threshold distance (cm).
+    """
+    distance = ir_distance_sensor_ctrl.get_distance_info(1)
+    
+    while distance > threshold:
+        distance = ir_distance_sensor_ctrl.get_distance_info(1)
+        chassis_ctrl.move_with_speed(0.5, 0, 0)
+        print("Distance: ", distance)
+        time.sleep(0.05)
+        
+    chassis_ctrl.stop()
 
 def get_nearest_marker():
     marker = vision_ctrl.get_marker_detection_info()
@@ -142,20 +158,6 @@ def get_nearest_marker():
             nearest_marker = [marker_id, x, y, w, h]
 
     return nearest_marker
-
-def moveForwardUntilWall(threshold):
-    """
-    Moves forward until the IR sensor detects a wall within the threshold distance (cm).
-    """
-    distance = ir_distance_sensor_ctrl.get_distance_info(1)
-    
-    while distance > threshold:
-        distance = ir_distance_sensor_ctrl.get_distance_info(1)
-        chassis_ctrl.move_with_speed(0.5, 0, 0)
-        print("Distance: ", distance)
-        time.sleep(0.05)
-        
-    chassis_ctrl.stop()
 
 def lineTrack():
     """
@@ -323,20 +325,10 @@ def startingUsingDist():
 
 def main():
     initialise()
-    
-    # ---------------------------- If Navigating Maze Without Markers ----------------------------
-    
-    # startingUsingInfrared() # Uncomment 1 only
-    # startingUsingDist() # Uncomment 1 only
-    # climbRamp()
-    
-    # ---------------------------- If Navigating Maze With Markers ----------------------------
-
-#    while not endRun:
-#      marker_id = track_marker()
-#      print("Marker ID:", marker_id)
-
-#      if marker_id == 0:
-#          continue
+    time.sleep(1)
+    marker_id = track_marker()
+    while marker_id == 0:
+        marker_id = track_marker()
+    print("Marker id:", marker_id)
 
 main()
