@@ -29,7 +29,7 @@ this is coded in robomaster app, not python sdk, so a normal python file will ki
 
 <h3>move (tank)</h3>
 
-`chassis_ctrl.move_with_speed(y, x, turn) `
+`chassis_ctrl.move_with_speed(y, x, turn)`
 
 - y: forward speed (m/s), 
 - x: right speed (m/s)
