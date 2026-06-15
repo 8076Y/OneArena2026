@@ -10,7 +10,8 @@ tune arm position (marker_calib.py) -> edit main
     - check if 200, -70 can pickup
     - check if 200, -70 can track marker
 find optimal marker threshold (marker_calib.py) -> edit main 
-find optimal wall threshold (marker_calib.py) -> edit main
+assume optimal wall threshold (marker_calib.py) -> edit main
+    - i think shld be quite near to wall but slighter more than marker threshold
 starting position -> navigate grey
 
 ------------ 5 min ------------
@@ -18,6 +19,7 @@ collect coral
 
 ------------ 5 min ------------
 navigate blue
+merge grey and blue
 '''
 
 
@@ -33,17 +35,6 @@ angular_pid = PIDCtrl()
 coral_count = 0
 picked_up = False
 endRun = False
-"""
-Example Usage:
-
-(Inside function)
-    global endRun
-    endRun = True
-    print('End of run')
-
-(Inside main)
-    while not endRun:
-"""
 
 def initialise():
     # custom pid for marker alignment
