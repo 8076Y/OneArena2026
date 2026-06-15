@@ -191,7 +191,7 @@ def track_and_pickup():
     picked_up = True
     chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 180)
 
-# --------------------- PURE INFARED NAVIGATION ---------------------
+# --------------------- PATH FOLLOWING ---------------------
 
 def navigate_grey():
     # robot should have already entered and turned to face the right alley
