@@ -1,3 +1,5 @@
+import time
+
 # global thresholds to tune
 wallDistThreshold = 22
 markerThreshold = 22
