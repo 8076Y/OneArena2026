@@ -24,8 +24,8 @@ merge grey and blue
 
 
 # global thresholds to tune
-wallDistThreshold = 30
-markerThreshold = 30
+wallDistThreshold = 22
+markerThreshold = 22
 
 # pid for marker alignment
 speed_pid = PIDCtrl()
@@ -59,8 +59,6 @@ def initialise():
         robotic_arm_ctrl.move(0, 0-robotic_arm_ctrl.get_position()[1], wait_for_complete=True)
     robotic_arm_ctrl.recenter(wait_for_complete=True)
     gripper_ctrl.open()
-    robotic_arm_ctrl.move(0, 25, wait_for_complete=True)
-    robotic_arm_ctrl.moveto(200, -70, wait_for_complete=True)
 
 def set_led(R, G, B):
     led_ctrl.set_bottom_led(rm_define.armor_bottom_front, R, G, B, rm_define.effect_always_on)
@@ -90,7 +88,7 @@ def track_marker():
         angular_pid.set_error(x_offset)
 
         if marker_info[1] == 47:
-            t = 40
+            t = 50
         else:
             t = markerThreshold
 
@@ -184,12 +182,12 @@ def track_and_pickup():
     print("picking up")
     grab()
     picked_up = True
-    chassis_ctrl.move_with_distance(-180, 0.2) # reverse - TUNE VALUE
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
+    chassis_ctrl.move_with_distance(90, 0.3) # reverse - TUNE VALUE
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 135)
 
 # --------------------- PATH FOLLOWING ---------------------
 
-def navigate_grey():
+def navigate():
     # robot should have already entered and turned to face the right alley
     time.sleep(0.2)
     gimbal_ctrl.recenter()
@@ -232,7 +230,7 @@ def navigate_grey_ir():
     moveForwardUntilWall(wallDistThreshold)
     chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
 
-def navigate_blue():
+def navigate_all():
     endBlue = False
 
     while not endBlue:
@@ -243,11 +241,12 @@ def navigate_blue():
             turn_left()
         elif marker_id == 12: # marker 2
             turn_right() 
-        elif marker_id == 13: # marker 3 - blue path back
+        elif marker_id == 13 or marker_id == 14: # marker 3 n 4- blue path back
             turn_left()
         elif marker_id == 8: # heart
             heart()
-            endBlue = True
+        elif marker_id == 47: # qn mark
+            track_and_pickup()
 
 def navigate_blue_ir():
     # facing marker 3, some distance away
@@ -273,11 +272,9 @@ def navigate_blue_ir():
 
 def turn_left():
     chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
 
 def turn_right():
     chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
 
 # def coral():
 #     # need to locate the coral here!
@@ -308,18 +305,7 @@ def main():
     # add here
     
     while not endRun:
-        navigate_grey()
-
-        # # locate and pickup coral - only if not managed by nav_grey
-        # coral()
-        coral_count += 1
-        if coral_count == 4:
-            endRun = True
-
-        # # reverse, turn to face marker 3
-        # # add here only if not managed by nav_grey
-
-        # navigate out of blue area
-        navigate_blue()
+        navigate_all()
 
 main()
+

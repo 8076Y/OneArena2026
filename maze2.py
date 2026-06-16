@@ -1,4 +1,5 @@
 # maze 2
+import time
 # order to tune
 '''
 ------------ whole course ------------
@@ -36,11 +37,11 @@ Example Usage:
 
 def initialise():
     # custom pid for line tracking
-    speed_pid.set_ctrl_params(5, 0, 0)
-    angular_pid.set_ctrl_params(150, 0, 0)
+    speed_pid.set_ctrl_params(100, 0, 0)
+    angular_pid.set_ctrl_params(450, 0, 0)
 
     # default rotation speed
-    chassis_ctrl.set_rotate_speed(100)
+    chassis_ctrl.set_rotate_speed(150)
 
     # track the blue guide line
     vision_ctrl.line_follow_color_set(rm_define.line_follow_color_blue)
@@ -73,7 +74,7 @@ def moveForwardUntilWall(threshold):
     
     while distance > threshold:
         distance = ir_distance_sensor_ctrl.get_distance_info(1)
-        chassis_ctrl.move_with_speed(0.5, 0, 0)
+        chassis_ctrl.move_with_speed(1, 0, 0)
         print("Distance: ", distance)
         time.sleep(0.05)
         
@@ -96,13 +97,13 @@ def scanRoom():
     set_led(0, 255, 0)
     time.sleep(0.3)
 
-def runCourse(exit_dist=wallDistThreshold, lost_timeout=1.5):
+def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
     # one continuous line track start -> end, spin at every vertex no matter what
     set_led(0, 255, 0)
     vision_ctrl.enable_detection(rm_define.vision_detection_line)
     media_ctrl.exposure_value_update(rm_define.exposure_value_small) # makes frame darker so blue line pops 
 
-    base_speed = 0.25
+    base_speed = 0.5
     settle_thresh = 0.06 # when goes back below this = bend finished
     turn_thresh = 0.18 # above this = bending
     in_turn = False
@@ -110,7 +111,7 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=1.5):
     last_seen = time.time()
 
     distance = ir_distance_sensor_ctrl.get_distance_info(1)
-    while distance > exit_dist:
+    while 1:
         distance = ir_distance_sensor_ctrl.get_distance_info(1)
         lineInfo = vision_ctrl.get_line_detection_info()
         if lineInfo[1] == 1: # single clean line
@@ -125,11 +126,10 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=1.5):
                 in_turn = True
             elif in_turn and abs(x_offset) < settle_thresh: # cleared the vertex
                 in_turn = False
-                scanRoom()
         else:
             # dashed line or lost: keep curving to go over gap
             if time.time() - last_seen > lost_timeout:
-                break # line gone too long, assume end of course
+                chassis_ctrl.move_with_speed(base_speed * -0.6, last_steer * 0.6) # line gone too long, assume end of course
             chassis_ctrl.move_with_speed(base_speed * 0.6, 0, last_steer * 0.6)
         time.sleep(0.05)
     chassis_ctrl.stop()
