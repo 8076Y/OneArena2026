@@ -1,28 +1,3 @@
-# order to tune
-'''
------------- 5 min ------------
-starting position -> alley
-heart -> alley
-heart -> ending
-
------------- 5 min ------------
-tune arm position (marker_calib.py) -> edit main
-    - check if 200, -70 can pickup
-    - check if 200, -70 can track marker
-find optimal marker threshold (marker_calib.py) -> edit main 
-assume optimal wall threshold (marker_calib.py) -> edit main
-    - i think shld be quite near to wall but slighter more than marker threshold
-starting position -> navigate grey
-
------------- 5 min ------------
-collect coral
-
------------- 5 min ------------
-navigate blue
-merge grey and blue
-'''
-
-
 # global thresholds to tune
 wallDistThreshold = 22
 markerThreshold = 22
@@ -32,6 +7,7 @@ speed_pid = PIDCtrl()
 angular_pid = PIDCtrl()
 
 # global flags
+two_count = 0
 coral_count = 0
 picked_up = False
 endRun = False
@@ -112,7 +88,19 @@ def track_marker():
     
     else:
         # move forward until marker is detected
-        chassis_ctrl.move_with_speed(0.4)
+        if two_count == 5:
+            yaw = chassis_ctrl.get_attitude(rm_define.chassis_yaw)
+            if 87 < yaw < 93:
+                chassis_ctrl.move_with_speed(1) # speedrun to reduce long distance drift
+            else:
+                chassis_ctrl.stop()
+                yaw = chassis_ctrl.get_attitude(rm_define.chassis_yaw)
+                if yaw < 90:
+                    chassis_ctrl.rotate_with_degree(rm_define.clockwise, int(90-yaw))
+                else:
+                    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, int(yaw-90))
+        else:
+            chassis_ctrl.move_with_speed(0.4)
         return 0
 
 def get_nearest_marker():
@@ -182,91 +170,27 @@ def track_and_pickup():
     print("picking up")
     grab()
     picked_up = True
-    chassis_ctrl.move_with_distance(90, 0.3) # reverse - TUNE VALUE
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 135)
+    robotic_arm_ctrl.move(0, 0-robotic_arm_ctrl.get_position()[1], wait_for_complete=True) # to prevent arm jamming
+    robotic_arm_ctrl.recenter(wait_for_complete=False)
 
 # --------------------- PATH FOLLOWING ---------------------
 
-def navigate():
-    # robot should have already entered and turned to face the right alley
-    time.sleep(0.2)
-    gimbal_ctrl.recenter()
-    set_led(0, 255, 0)
-    chassis_ctrl.move_with_speed(3, 0, 0) # WAHOOO
-    time.sleep(0.8)
-    chassis_ctrl.stop() # stop rush
-
-    set_led(255, 255, 0)
-    endGrey = False
-
-    while not endGrey:
-        marker_id = track_marker()
-        print("Marker ID:", marker_id) 
-
-        if marker_id == 11: # marker 1
-            turn_left()
-        elif marker_id == 12: # marker 2
-            turn_right() 
-        elif marker_id == 13: # marker 3 - blue path back
-            turn_left()
-        elif marker_id == 47: # qn mark
-            track_and_pickup()
-            endGrey = True
-
-def navigate_grey_ir():
-    # robot should have already entered and turned to face the right alley
-    time.sleep(0.2)
-    gimbal_ctrl.recenter()
-    set_led(0, 255, 0)
-    chassis_ctrl.move_with_speed(3, 0, 0) # WAHOOO
-    time.sleep(0.8)
-    chassis_ctrl.stop() # stop rush
-
-    set_led(255, 255, 0)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-
 def navigate_all():
-    endBlue = False
+    global two_count
+    marker_id = track_marker()
+    print("Marker ID:", marker_id) 
 
-    while not endBlue:
-        marker_id = track_marker()
-        print("Marker ID:", marker_id) 
-
-        if marker_id == 11: # marker 1
-            turn_left()
-        elif marker_id == 12: # marker 2
-            turn_right() 
-        elif marker_id == 13 or marker_id == 14: # marker 3 n 4- blue path back
-            turn_left()
-        elif marker_id == 8: # heart
-            heart()
-        elif marker_id == 47: # qn mark
-            track_and_pickup()
-
-def navigate_blue_ir():
-    # facing marker 3, some distance away
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
-    moveForwardUntilWall(wallDistThreshold)
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
-    moveForwardUntilWall(wallDistThreshold) # reached heart
+    if marker_id == 11: # marker 1
+        turn_left()
+    elif marker_id == 12: # marker 2
+        two_count += 1
+        turn_right() 
+    elif marker_id == 13 or marker_id == 14: # marker 3, 4
+        turn_left()
+    elif marker_id == 8: # heart
+        heart()
+    elif marker_id == 47: # qn mark
+        coral()
 
 # ---------------------------- Marker Handlers ----------------------------
 
@@ -276,36 +200,39 @@ def turn_left():
 def turn_right():
     chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
 
-# def coral():
-#     # need to locate the coral here!
-#     # marker 47, qn mark
-#     track_and_pickup()
-#     grab()
-#     pass
+def coral():
+    global two_count
+    two_count += 1
+    robotic_arm_ctrl.moveto(185, -65, wait_for_complete=True)
+    track_and_pickup()
+    chassis_ctrl.move_with_distance(90, 0.3) # go right
+    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 150)
 
 def heart():
-    if not endRun:
-        chassis_ctrl.rotate_with_degree(rm_define.clockwise, 180)
-        chassis_ctrl.move_with_distance(90, 0.5) # strafe right to base
-        release()
-        chassis_ctrl.move_with_distance(-90, 0.2) # strafe left to alley, ready to navigate grey
-    else:
-        chassis_ctrl.move_with_distance(-90, 0.5) # strafe right to base
-        release()
+    global endRun
+    global two_count
+    global coral_count
+    coral_count += 1
+    two_count = 0
+    chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 45)
+    robotic_arm_ctrl.moveto(200, -70)
+    release()
+    robotic_arm_ctrl.move(0, 0-robotic_arm_ctrl.get_position()[1], wait_for_complete=True) # to prevent arm jamming
+    robotic_arm_ctrl.recenter(wait_for_complete=False)
+    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 135)
+    if coral_count == 4:
+        endRun = True
 
 
 # ---------------------------- MAIN ----------------------------
 
 def main():
-    global coral_count
+    global two_count
     global endRun
 
     initialise()
-    # TODO: ENTER MAZE, FACE ALLEY
-    # add here
     
     while not endRun:
         navigate_all()
 
 main()
-
