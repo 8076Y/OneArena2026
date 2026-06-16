@@ -1,27 +1,16 @@
-# maze 2
+# 8076 yay! OneArena 2026 Maze 2 
 import time
-# order to tune
-'''
------------- whole course ------------
-start -> cave -> end (one continuous line track, scan at every vertex)
-tune base_speed (slow enough to track cleanly + survive dashed bits)
-tune turn_thresh / settle_thresh so it scans at each bend, not on noise
-tune lost_timeout ABOVE the longest dash gap but below a real end-of-line
-tune scan rotate speed (slow spin = clearer view)
-check exposure under the actual cave lighting
-CHECK: is the maze corridor wide enough for an in-place 360? if not, this approach clips walls
-'''
 
 
 # global thresholds to tune
-wallDistThreshold = 30
+wallDistThreshold = 25
+deadEndThreshold = 22
 
 # pid for line tracking
 speed_pid = PIDCtrl()
 angular_pid = PIDCtrl()
 
 # global flags
-picked_up = False
 endRun = False
 """
 Example Usage:
@@ -80,25 +69,34 @@ def moveForwardUntilWall(threshold):
         
     chassis_ctrl.stop()
 
+def escapeDeadEnd():
+    chassis_ctrl.stop()
+    set_led(255, 0, 0)
+    chassis_ctrl.move_with_speed(-0.3, 0, 0) # back off the wall for clearance
+    time.sleep(0.4)
+    chassis_ctrl.stop()
+    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 180)
+    set_led(0, 255, 0)
+
+def searchForLine():
+    chassis_ctrl.stop()
+    set_led(255, 100, 0) # orange 
+    chassis_ctrl.set_rotate_speed(40) # slow so we dont overshoot too far
+    for _ in range(0, 24): # 360/15
+        chassis_ctrl.rotate_with_degree(rm_define.clockwise, 15)
+        if vision_ctrl.get_line_detection_info()[1] == 1:
+            chassis_ctrl.set_rotate_speed(150) # restore default
+            set_led(0, 255, 0)
+            return True
+    chassis_ctrl.set_rotate_speed(150)
+    set_led(0, 0, 0)
+    return False
+
+
 
 # --------------------------- LINE TRACKING ---------------------------
 
-def scanRoom():
-    # spin 360 lol
-    chassis_ctrl.stop()
-    set_led(0, 0, 255)
-    time.sleep(0.3)
-    media_ctrl.exposure_value_update(rm_define.exposure_value_large) # brighten to see in the cave
-    chassis_ctrl.set_rotate_speed(25) # slow spin
-    chassis_ctrl.rotate_with_degree(rm_define.clockwise, 360)
-    time.sleep(0.5)
-    media_ctrl.exposure_value_update(rm_define.exposure_value_small)
-    chassis_ctrl.set_rotate_speed(100) # back to default
-    set_led(0, 255, 0)
-    time.sleep(0.3)
-
-def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
-    # one continuous line track start -> end, spin at every vertex no matter what
+def pleasewin(exit_dist=wallDistThreshold, lost_timeout=5):
     set_led(0, 255, 0)
     vision_ctrl.enable_detection(rm_define.vision_detection_line)
     media_ctrl.exposure_value_update(rm_define.exposure_value_small) # makes frame darker so blue line pops 
@@ -107,11 +105,11 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
     settle_thresh = 0.06 # when goes back below this = bend finished
     turn_thresh = 0.18 # above this = bending
     in_turn = False
-    last_steer = 0
+    last_good_steer = 0
     last_seen = time.time()
 
     distance = ir_distance_sensor_ctrl.get_distance_info(1)
-    while 1:
+    while True:
         distance = ir_distance_sensor_ctrl.get_distance_info(1)
         lineInfo = vision_ctrl.get_line_detection_info()
         if lineInfo[1] == 1: # single clean line
@@ -119,7 +117,7 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
             x_offset = lineInfo[14] - 0.5 # 4th point, lookahead
             angular_pid.set_error(x_offset)
             steer = angular_pid.get_output()
-            last_steer = steer
+            last_good_steer = steer
             chassis_ctrl.move_with_speed(base_speed, 0, steer)
 
             if abs(x_offset) > turn_thresh:
@@ -127,10 +125,20 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
             elif in_turn and abs(x_offset) < settle_thresh: # cleared the vertex
                 in_turn = False
         else:
+            if distance < deadEndThreshold:
+                escapeDeadEnd();
+                last_seen = time.time()
+            
+            else:
+                if time.time() - last_seen > lost_timeout:
+                    # lost line for too long
+                    if not searchForLine():
+                        break # just reset
+                    last_seen = time.time()
+
+
             # dashed line or lost: keep curving to go over gap
-            if time.time() - last_seen > lost_timeout:
-                chassis_ctrl.move_with_speed(base_speed * -0.6, last_steer * 0.6) # line gone too long, assume end of course
-            chassis_ctrl.move_with_speed(base_speed * 0.6, 0, last_steer * 0.6)
+            chassis_ctrl.move_with_speed(base_speed * 0.6, 0, last_good_steer * 0.6)
         time.sleep(0.05)
     chassis_ctrl.stop()
     vision_ctrl.disable_detection(rm_define.vision_detection_line)
@@ -140,6 +148,6 @@ def runCourse(exit_dist=wallDistThreshold, lost_timeout=3):
 
 def main():
     initialise()
-    runCourse()
+    pleasewin()
 
 main()
